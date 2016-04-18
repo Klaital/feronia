@@ -1,0 +1,93 @@
+#!/usr/bin/env ruby
+require 'optparse'
+
+# Configure defaults
+env = 'production'
+proc_count = 8 # TODO: implement support for this
+user = `whoami`.chomp
+unicorn_exe_path = `which unicorn | head -n 1`.strip
+unicorn_conf = File.join(__dir__, 'unicorn.rb')
+pidfile = File.join('/', 'var', 'run', 'feronia', 'pids', 'unicorn.pid')
+
+VALID_ENVIRONMENTS = %w[ production development ]
+OptionParser.new do |opt|
+  opt.banner = 'Usage: rvmsudo ./restart OPTIONS'
+
+  opt.on('-e', '--env ENVIRONMENT', VALID_ENVIRONMENTS, 'The environment to configure for.') do |environment|
+    env = environment
+  end
+
+  opt.on('-u', '--user USERNAME', 'The user to run the service as.') do |username|
+    user = username
+  end
+
+  opt.on('-c', '--count PROC_COUNT', 'The number of processes to have unicorn fork.') do |procs|
+    proc_count = procs
+  end
+
+  opt.on('--unicorn PATH', 'Path to your unicorn executable.') do |path|
+    unicorn_exe_path = path
+  end
+
+  opt.on('--unicorn-conf PATH', 'Path to your unicorn config script.') do |path|
+    unicorn_conf = path
+  end
+
+  opt.on('--pidfile PATH', 'Path to the unicorn pidfile. It contains the pid of the master process, and is needed to kill the correct process during the restart.') do |path|
+    pidfile = path
+  end
+
+  opt.on_tail('-h', '--help', 'Display this message') do
+    puts opt
+    exit
+  end
+end.parse!
+
+if $DEBUG || $VERBOSE
+  puts " === CONFIG === "
+  puts "Environment=#{env}"
+  puts "ProcCount=#{proc_count}"
+  puts "User=#{user}"
+  puts "UnicornExePath=#{unicorn_exe_path}"
+  puts "UnicornConfPath=#{unicorn_conf}"
+  puts "UnicornPidfile=#{pidfile}"
+end
+
+
+##############
+#### MAIN ####
+##############
+
+###
+print "Killing Listener Unicorn service...\t"
+if File.exists?(pidfile)
+  pids = File.readlines(pidfile).map {|pid| pid.strip.length > 0 ? pid.strip.to_i : nil}
+  pids.compact!
+
+  pids.each do |pid|
+    begin
+      Process.kill("SIGTERM", pid)
+    rescue StandardError => e
+      puts "Unable to kill pid #{pid}"
+    end
+  end
+
+  puts "[DONE]\t#{pids.length} processes killed"
+else
+  puts '[SKIP]'
+end
+
+###
+sleep(1) # Let the old processes die before restarting
+print "Starting Unicorn...\t"
+
+if user == `whoami`.strip
+  cmd = "#{unicorn_exe_path} -c #{unicorn_conf} -E #{env} -D"
+  warn "Running: #{cmd}"
+  `#{cmd}`
+else
+  system("rvmsudo -u #{user} #{unicorn_exe_path} -c #{unicorn_conf} -E #{env} -D")
+end
+
+puts "[DONE]"
+
