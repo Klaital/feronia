@@ -1,7 +1,8 @@
 # service.rb
 # Data structure representing a single Web Service that Feronia supports calls to.
 
-require'json'
+require 'json'
+require 'net/http'
 
 class Service
 	
@@ -16,7 +17,7 @@ class Service
 		@consumers = config[:consumers] || config['consumers']
 		@environment = config[:environment] || config['environment']
 		@protocol = config[:protocol] || config['protocol']
-		@port     = (config[:port] || config['protocol']).to_i
+		@port     = (config[:port] || config['port']).to_i
 		@hostname = config[:hostname] || config['hostname']
 		@endpoint = config[:endpoint] || config['endpoint']
 		@verb     = config[:verb] || config['verb']
@@ -68,6 +69,8 @@ class Service
 	def to_s
 		"#{@slug}.#{@environment}: #{@verb} #{@protocol}://#{@hostname}:#{@port}#{@endpoint}"
 	end
+
+	
 end
 
 
