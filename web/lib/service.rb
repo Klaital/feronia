@@ -90,7 +90,7 @@ class Service
               return nil
           end
 
-    return req
+    return uri, req
   end
 end
 
