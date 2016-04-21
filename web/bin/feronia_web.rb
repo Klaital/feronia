@@ -38,40 +38,70 @@ class FeroniaWebApp < Sinatra::Base
     uri, http_req = s.generate_request(params)
     $logger.debug("Got HTTP request: #{http_req}")
 
-    # Execute the API call
-    request_start_time = Time.now
-    res = Net::HTTP.start(uri.hostname, uri.port) do |http|
-      http.request(http_req)
-    end
-    request_turnaround_millis = ((Time.now - request_start_time) * 1000).round
+    begin
+      # Execute the API call
+      request_start_time = Time.now
+      res = Net::HTTP.start(uri.hostname, uri.port) do |http|
+        http.request(http_req)
+      end
+      request_turnaround_millis = ((Time.now - request_start_time) * 1000).round
 
-    $logger.debug("Got HTTP response: #{res}")
-    $logger.debug("Response from server #{res.code} #{res.message} in #{request_turnaround_millis}")
+      $logger.debug("Got HTTP response: #{res}")
+      $logger.debug("Response from server #{res.code} #{res.message} in #{request_turnaround_millis}")
 
-    # Format and render the response
-    status 200
-    payload = {}
-    payload['code'] = res.code
-    payload['body'] = JSON.parse(res.read_body).to_hash
+      # Format and render the response
+      status 200
+      payload = {}
+      payload['code'] = res.code
+      payload['body'] = JSON.parse(res.read_body).to_hash
 
-    response_body =<<BODY
-<html>
-<head>
-  <script src=\"https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js\"></script>
-  <title>#{s.name}, #{s.environment}</title>
-</head>
-<body>
-  <h3>#{s.name}, #{s.environment}</h3><br />
-  <table border="1">
-    <tr><td>HTTP Reponse</td><td>#{res.code} #{res.message}</td></tr>
-    <tr><td>Response Time</td><td>#{request_turnaround_millis} ms</td></tr>
-    <tr><td>Content Length</td><td></td></tr>
-  </table>
-  <h4></h4><br />
-  <pre class=\"prettyprint\">#{JSON.pretty_generate(payload)}</pre>
-</body>
-</html>
+      response_body =<<BODY
+  <html>
+  <head>
+    <script src=\"https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js\"></script>
+    <title>#{s.name}, #{s.environment}</title>
+  </head>
+  <body>
+    <h2>#{s.name}, #{s.environment}</h3><br />
+    <div id="requst-data">
+      <h3>Request Data</h3>
+      <table border="1">
+        <tr><td>URI</td><td>#{uri}</td></tr>
+      </table>
+    </div>
+    <div id="response-data">
+      <h3>Response Data</h3>
+      <table border="1">
+        <tr><td>HTTP Reponse</td><td>#{res.code} #{res.message}</td></tr>
+        <tr><td>Response Time</td><td>#{request_turnaround_millis} ms</td></tr>
+        <tr><td>Content Length</td><td></td></tr>
+      </table>
+      <h4></h4><br />
+      <pre class=\"prettyprint\">#{JSON.pretty_generate(payload)}</pre>
+    </div>
+  </body>
+  </html>
 BODY
-    body response_body
+      body response_body
+    rescue => e
+
+      response_body =<<BODY
+  <html>
+  <head>
+    <script src=\"https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js\"></script>
+    <title>#{s.name}, #{s.environment}</title>
+  </head>
+  <body>
+    <h3>#{s.name}, #{s.environment}</h3><br />
+    <h4>Caught Exception: #{e.class} #{e.message}</h4>
+    <pre>
+      #{e.backtrace}
+    </pre>
+  </body>
+  </html>
+BODY
+      body response_body
+    end
+
   end
 end
