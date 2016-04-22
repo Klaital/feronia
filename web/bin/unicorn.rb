@@ -14,4 +14,4 @@ pid "/var/run/feronia/pids/unicorn.pid"
 stderr_path "/var/log/feronia/unicorn.stderr.log"
 stdout_path "/var/log/feronia/unicorn.stdout.log"
 
-
+timeout 300
