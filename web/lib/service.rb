@@ -11,6 +11,7 @@ class Service
   attr_accessor :protocol, :port, :hostname, :endpoint, :verb
   attr_accessor :payload_template, :headers
   attr_accessor :cert_path, :key_path, :passwd
+  attr_accessor :logger # it's easier sometimes to let the caller set the logger object after instantiation
 
   def initialize(config={})
     @slug = config[:slug] || config['slug']
@@ -23,10 +24,12 @@ class Service
     @endpoint = config[:endpoint] || config['endpoint']
     @verb = config[:verb] || config['verb']
     @payload_template_path = config[:payload_template] || config['payload_template']
-    @headers = config[:headers] || config['headers']
+    @headers = config[:headers] || config['headers'] || {}
     @cert_path = config[:cert] || config['cert']
     @key_path = config[:key] || config['key']
     @passwd = config[:passwd] || config['passwd']
+
+    @logger = config[:logger] || config['logger'] || Logger.new($stderr)
   end
 
   def self.load_all_from_mongo(mongo_config={})
@@ -80,15 +83,32 @@ class Service
       end
     end
 
+    @headers.each_key do |h|
+      warn(">Updating header #{h}")
+      params.each_pair do |param, val|
+        if @headers[h].include?("$#{param}")
+          warn(">>Param #{param}")
+          @headers[h] = @headers[h].gsub("$#{param}", val)
+        end
+      end
+    end
+
     uri = URI.parse(uri)
     req = case(@verb)
-            when /get/i
-              warn("Generating GET request...")
-              return uri, Net::HTTP::Get.new(uri)
-            else
-              warn("Unsupported HTTP verb: #{@verb}")
-              return nil
-          end
+      when /get/i
+        @logger.debug("Generating GET request...")
+        Net::HTTP::Get.new(uri)
+      else
+        @logger.debug("Unsupported HTTP verb: #{@verb}")
+        nil
+    end
+
+    # Set the headers
+    unless req.nil?
+      @headers.each_pair do |h,v|
+        req[h] = v
+      end
+    end
 
     return uri, req
   end
