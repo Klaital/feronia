@@ -30,14 +30,16 @@ class FeroniaWebApp < Sinatra::Base
     end
   end
 
-  get '/ServiceCall/:environment/:slug' do
+  get '/ServiceRequest/:environment/:slug' do
     # Load the API data
     s = Service.load_from_file(settings.service_config_path, params[:slug], params[:environment])
+    s.logger = $logger
 
     # Format the request
     uri, http_req = s.generate_request(params)
     $logger.debug("Got HTTP request: #{http_req}")
 
+    payload = {} # this is the response object
     begin
       # Execute the API call
       request_start_time = Time.now
@@ -51,57 +53,74 @@ class FeroniaWebApp < Sinatra::Base
 
       # Format and render the response
       status 200
-      payload = {}
-      payload['code'] = res.code
-      payload['body'] = JSON.parse(res.read_body).to_hash
+      payload = {'response'=>{}}
+      payload['response']['code'] = res.code
+      payload['response']['message'] = res.message
+      payload['response']['body'] = res.read_body
+      payload['response']['time'] = request_turnaround_millis
+    rescue => e
+      status 503
+      payload['error'] = "Caught Exception: #{e.class} #{e.message}"
+      payload['backtrace'] = e.backtrace
+    end
 
-      response_body =<<BODY
+    body JSON.pretty_generate(payload)
+  end
+
+  get '/ServiceCall/:environment/:slug' do
+    s = Service.load_from_file(settings.service_config_path, params[:slug], params[:environment])
+    s.logger = $logger
+    response_body =<<BODY
   <html>
   <head>
-    <script src=\"https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js\"></script>
-    <title>#{s.name}, #{s.environment}</title>
+    <title>Feronia | #{s.name}, #{s.environment}</title>
+    <script>
+var request = new XMLHttpRequest();
+var uri = "#{request.url.gsub('/ServiceCall/', '/ServiceRequest/')}";
+
+request.onreadystatechange = function() {
+    if (request.readyState == 4 && request.status == 200) {
+        var data = JSON.parse(request.responseText);
+        display_response(data);
+    }
+};
+
+request.open("#{s.verb.upcase}", uri, true);
+request.send();
+
+
+function display_response(data) {
+  document.getElementById("responsepayload").innerHTML = JSON.stringify(JSON.parse(data.response.body), null, 2);
+  document.getElementById("response-time").innerHTML = data.response.time + ' ms';
+  document.getElementById("response-status").innerHTML = data.response.code + ' ' + data.response.message;
+
+var script = document.createElement('script');
+script.src = "https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js";
+document.getElementsByTagName('head')[0].appendChild(script);
+
+}
+</script>
   </head>
   <body>
-    <h2>#{s.name}, #{s.environment}</h3><br />
-    <div id="requst-data">
+    <div id="request-info">
       <h3>Request Data</h3>
       <table border="1">
-        <tr><td>URI</td><td>#{uri}</td></tr>
+        <tr><td>URL</td><td>#{s.verb} #{s.hostname}#{s.endpoint}</td></tr>
       </table>
+
     </div>
-    <div id="response-data">
+    <div id="response-info">
       <h3>Response Data</h3>
       <table border="1">
-        <tr><td>HTTP Reponse</td><td>#{res.code} #{res.message}</td></tr>
-        <tr><td>Response Time</td><td>#{request_turnaround_millis} ms</td></tr>
-        <tr><td>Content Length</td><td></td></tr>
+        <tr><td>Response Time</td><td id="response-time"></td></tr>
+        <tr><td>Status</td><td id="response-status"></td></tr>
       </table>
-      <h4></h4><br />
-      <pre class=\"prettyprint\">#{JSON.pretty_generate(payload)}</pre>
+      <pre id="responsepayload" class="prettyprint"></pre>
     </div>
   </body>
   </html>
 BODY
       body response_body
-    rescue => e
-
-      response_body =<<BODY
-  <html>
-  <head>
-    <script src=\"https://cdn.rawgit.com/google/code-prettify/master/loader/run_prettify.js\"></script>
-    <title>#{s.name}, #{s.environment}</title>
-  </head>
-  <body>
-    <h3>#{s.name}, #{s.environment}</h3><br />
-    <h4>Caught Exception: #{e.class} #{e.message}</h4>
-    <pre>
-      #{e.backtrace}
-    </pre>
-  </body>
-  </html>
-BODY
-      body response_body
-    end
 
   end
 end
