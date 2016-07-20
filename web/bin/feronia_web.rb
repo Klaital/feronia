@@ -1,10 +1,10 @@
-require 'sinatra/base'
+require 'sinatra'
 require 'time'
 require 'json'
 require 'logger'
 require_relative '../lib/service.rb'
 
-class FeroniaWebApp < Sinatra::Base
+set :bind, '0.0.0.0'
 
   configure do
     set :logging, true
@@ -123,4 +123,3 @@ BODY
       body response_body
 
   end
-end
