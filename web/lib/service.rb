@@ -4,6 +4,7 @@
 require 'json'
 require 'uri'
 require 'net/http'
+require 'logger'
 
 class Service
 
