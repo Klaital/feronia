@@ -67,7 +67,11 @@ class Service
 
   def self.load_from_file(json_path, slug, env)
     all_services = self.load_all_from_file(json_path)
-    return all_services[slug][env]
+    if all_services.has_key?(slug) && all_services[slug].has_key?(env)
+      all_services[slug][env]
+    else
+      []
+    end
   end
 
   def to_s
