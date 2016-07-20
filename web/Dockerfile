@@ -30,6 +30,5 @@ ADD lib/service.rb lib/
 ADD bin/feronia_web.rb bin/
 
 # Start the server
-#ENV PORT 3000
 EXPOSE 4567
 CMD ["ruby", "bin/feronia_web.rb"]
